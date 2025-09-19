@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Добавление сообщений</title>
+ <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+ <div class="container">
+ <div class="header">
+ <h1>Новости и сообщения</h1>
+ <button id="loginButton" class="login-button">Войти</button>
+ </div>
+ <div class="messages" id="messages">
+ <!-- Сообщения будут добавляться здесь -->
+ </div>
+ <div class="input-container" id="inputContainer">
+ <textarea id="messageInput" placeholder="Введите ваше сообщение"></textarea>
+ <button id="addMessageButton">Добавить сообщение</button>
+ <button id="saveMessagesButton">Сохранить сообщения</button>
+ </div>
+ </div>
+ <div class="context-menu" id="contextMenu">
+ <div class="context-menu-item" id="editMessage">Редактировать</div>
+ <div class="context-menu-item" id="deleteMessage">Удалить</div>
+ </div>
+ <div class="login-modal" id="loginModal">
+ <div class="login-modal-content">
+ <span class="close-button" id="closeLoginModal">&times;</span>
+ <h2>Вход в аккаунт администратора</h2>
+ <input type="password" id="passwordInput" placeholder="Введите пароль">
+ <button id="submitPasswordButton">Войти</button>
+ </div>
+ </div>
+ <script src="script.js"></script>
+</body>
+</html>
