@@ -17,6 +17,9 @@
  </div>
  <div class="input-container" id="inputContainer">
  <textarea id="messageInput" placeholder="Введите ваше сообщение"></textarea>
+ <input type="file" id="imageInput" accept="image/*" style="display: none;">
+ <button id="addImageButton">Добавить изображение</button>
+ <button id="createImageButton">Создать изображение</button>
  <button id="addMessageButton">Добавить сообщение</button>
  <button id="saveMessagesButton">Сохранить сообщения</button>
  </div>
@@ -31,6 +34,19 @@
  <h2>Вход в аккаунт администратора</h2>
  <input type="password" id="passwordInput" placeholder="Введите пароль">
  <button id="submitPasswordButton">Войти</button>
+ </div>
+ </div>
+ <div class="image-modal" id="imageModal">
+ <div class="image-modal-content">
+ <span class="close-button" id="closeImageModal">&times;</span>
+ <h2>Создать изображение</h2>
+ <canvas id="imageCanvas" width="400" height="300"></canvas>
+ <div class="image-controls">
+ <input type="color" id="colorPicker" value="#000000">
+ <button id="drawButton">Рисовать</button>
+ <button id="clearButton">Очистить</button>
+ <button id="saveImageButton">Сохранить изображение</button>
+ </div>
  </div>
  </div>
  <script src="script.js"></script>

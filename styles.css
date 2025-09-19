@@ -40,6 +40,13 @@ h1 {
  background-color: #d9d9d9;
 }
 
+.message-image {
+ max-width: 100%;
+ height: auto;
+ border-radius: 5px;
+ margin-top: 10px;
+}
+
 .input-container {
  margin-top: 20px;
  display: flex;
@@ -155,5 +162,49 @@ h1 {
 }
 
 .login-modal-content button:hover {
+ background-color: #0056b3;
+}
+
+.image-modal {
+ display: none;
+ position: fixed;
+ top: 0;
+ left: 0;
+ width: 100%;
+ height: 100%;
+ background-color: rgba(0, 0, 0, 0.5);
+ z-index: 1000;
+}
+
+.image-modal-content {
+ background-color: #fff;
+ margin: 5% auto;
+ padding: 20px;
+ border-radius: 5px;
+ width: 80%;
+ max-width: 600px;
+ box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.image-modal-content h2 {
+ margin-top: 0;
+}
+
+.image-controls {
+ margin-top: 10px;
+ display: flex;
+ gap: 10px;
+}
+
+.image-controls button {
+ padding: 8px 16px;
+ background-color: #007bff;
+ color: white;
+ border: none;
+ border-radius: 5px;
+ cursor: pointer;
+}
+
+.image-controls button:hover {
  background-color: #0056b3;
 }

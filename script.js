@@ -12,13 +12,43 @@ document.addEventListener("DOMContentLoaded", function() {
  const passwordInput = document.getElementById("passwordInput");
  const submitPasswordButton = document.getElementById("submitPasswordButton");
  const inputContainer = document.getElementById("inputContainer");
+ const imageInput = document.getElementById("imageInput");
+ const addImageButton = document.getElementById("addImageButton");
+ const createImageButton = document.getElementById("createImageButton");
+ const imageModal = document.getElementById("imageModal");
+ const closeImageModal = document.getElementById("closeImageModal");
+ const imageCanvas = document.getElementById("imageCanvas");
+ const colorPicker = document.getElementById("colorPicker");
+ const drawButton = document.getElementById("drawButton");
+ const clearButton = document.getElementById("clearButton");
+ const saveImageButton = document.getElementById("saveImageButton");
 
  let currentMessageElement = null;
  let isAdmin = false;
- const adminPassword = "admin123"; // Задаем пароль администратора
+ const encryptedAdminPassword = "YWRtaW4xMjM="; // Зашифрованный пароль "admin123"
+ let currentImageUrl = null;
+ let db;
+ let isDrawing = false;
+ let ctx = imageCanvas.getContext("2d");
 
- // Загружаем сохраненные сообщения при загрузке страницы
+ // Открываем или создаем базу данных IndexedDB
+ const request = indexedDB.open("MessagesDB", 1);
+
+ request.onerror = function(event) {
+ console.log("Ошибка при открытии базы данных:", event.target.errorCode);
+ };
+
+ request.onsuccess = function(event) {
+ db = event.target.result;
  loadMessages();
+ };
+
+ request.onupgradeneeded = function(event) {
+ db = event.target.result;
+ const objectStore = db.createObjectStore("messages", { keyPath: "id", autoIncrement: true });
+ objectStore.createIndex("text", "text", { unique: false });
+ objectStore.createIndex("image", "image", { unique: false });
+ };
 
  // Проверяем, вошел ли пользователь как администратор
  checkAdminStatus();
@@ -28,11 +58,22 @@ document.addEventListener("DOMContentLoaded", function() {
  if (isAdmin) {
  const messageText = messageInput.value.trim();
 
- if (messageText !== "") {
+ if (messageText !== "" || currentImageUrl) {
  // Создаем новый элемент сообщения
  const messageElement = document.createElement("div");
  messageElement.className = "message";
+
+ if (messageText !== "") {
  messageElement.textContent = messageText;
+ }
+
+ if (currentImageUrl) {
+ const imageElement = document.createElement("img");
+ imageElement.src = currentImageUrl;
+ imageElement.className = "message-image";
+ messageElement.appendChild(imageElement);
+ currentImageUrl = null;
+ }
 
  // Добавляем обработчик контекстного меню
  messageElement.addEventListener("contextmenu", function(event) {
@@ -46,7 +87,7 @@ document.addEventListener("DOMContentLoaded", function() {
  // Очищаем поле ввода
  messageInput.value = "";
  } else {
- alert("Пожалуйста, введите сообщение");
+ alert("Пожалуйста, введите сообщение или добавьте изображение");
  }
  } else {
  alert("Вы должны войти как администратор для добавления сообщений");
@@ -69,7 +110,7 @@ document.addEventListener("DOMContentLoaded", function() {
  }
  });
 
- // Сохраняем сообщения в локальное хранилище
+ // Сохраняем сообщения в базу данных
  saveMessagesButton.addEventListener("click", function() {
  if (isAdmin) {
  saveMessages();
@@ -99,7 +140,7 @@ document.addEventListener("DOMContentLoaded", function() {
  // Проверяем пароль и входим в аккаунт администратора
  submitPasswordButton.addEventListener("click", function() {
  const password = passwordInput.value.trim();
- if (password === adminPassword) {
+ if (encryptPassword(password) === encryptedAdminPassword) {
  isAdmin = true;
  loginModal.style.display = "none";
  loginButton.textContent = "Выход";
@@ -110,6 +151,95 @@ document.addEventListener("DOMContentLoaded", function() {
  }
  });
 
+ // Добавляем обработчик для кнопки добавления изображения
+ addImageButton.addEventListener("click", function() {
+ if (isAdmin) {
+ imageInput.click();
+ } else {
+ alert("Вы должны войти как администратор для добавления изображений");
+ }
+ });
+
+ // Обрабатываем загрузку изображения
+ imageInput.addEventListener("change", function(event) {
+ const file = event.target.files[0];
+ if (file) {
+ const reader = new FileReader();
+ reader.onload = function(e) {
+ currentImageUrl = e.target.result;
+ alert("Изображение добавлено. Теперь вы можете добавить сообщение.");
+ };
+ reader.readAsDataURL(file);
+ }
+ });
+
+ // Добавляем обработчик для кнопки создания изображения
+ createImageButton.addEventListener("click", function() {
+ if (isAdmin) {
+ imageModal.style.display = "block";
+ clearCanvas();
+ } else {
+ alert("Вы должны войти как администратор для создания изображений");
+ }
+ });
+
+ // Закрываем диалоговое окно для создания изображения
+ closeImageModal.addEventListener("click", function() {
+ imageModal.style.display = "none";
+ });
+
+ // Обрабатываем рисование на холсте
+ imageCanvas.addEventListener("mousedown", function(event) {
+ if (isDrawing) {
+ const rect = imageCanvas.getBoundingClientRect();
+ const x = event.clientX - rect.left;
+ const y = event.clientY - rect.top;
+ ctx.beginPath();
+ ctx.moveTo(x, y);
+ }
+ });
+
+ imageCanvas.addEventListener("mousemove", function(event) {
+ if (isDrawing) {
+ const rect = imageCanvas.getBoundingClientRect();
+ const x = event.clientX - rect.left;
+ const y = event.clientY - rect.top;
+ ctx.lineTo(x, y);
+ ctx.stroke();
+ }
+ });
+
+ imageCanvas.addEventListener("mouseup", function() {
+ ctx.closePath();
+ });
+
+ // Включаем/выключаем рисование
+ drawButton.addEventListener("click", function() {
+ isDrawing = !isDrawing;
+ drawButton.textContent = isDrawing ? "Остановить рисование" : "Рисовать";
+ ctx.strokeStyle = colorPicker.value;
+ ctx.lineWidth = 2;
+ });
+
+ // Очищаем холст
+ clearButton.addEventListener("click", function() {
+ clearCanvas();
+ });
+
+ // Сохраняем изображение
+ saveImageButton.addEventListener("click", function() {
+ currentImageUrl = imageCanvas.toDataURL();
+ imageModal.style.display = "none";
+ alert("Изображение сохранено. Теперь вы можете добавить сообщение.");
+ });
+
+ // Функция для очистки холста
+ function clearCanvas() {
+ ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+ ctx.fillStyle = "#ffffff";
+ ctx.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
+ }
+
  // Функция для проверки статуса администратора
  function checkAdminStatus() {
  if (isAdmin) {
@@ -119,22 +249,52 @@ document.addEventListener("DOMContentLoaded", function() {
  }
  }
 
- // Функция для сохранения сообщений в локальное хранилище
+ // Функция для сохранения сообщений в базу данных
  function saveMessages() {
- const messages = Array.from(messagesContainer.children).map(message => message.textContent);
- localStorage.setItem("messages", JSON.stringify(messages));
+ const transaction = db.transaction(["messages"], "readwrite");
+ const objectStore = transaction.objectStore("messages");
+
+ // Очищаем хранилище перед сохранением новых сообщений
+ const clearRequest = objectStore.clear();
+ clearRequest.onsuccess = function() {
+ const messages = Array.from(messagesContainer.children).map(message => {
+ const messageData = {
+ text: message.textContent,
+ image: message.querySelector("img") ? message.querySelector("img").src : null
+ };
+ return messageData;
+ });
+
+ messages.forEach(messageData => {
+ objectStore.add(messageData);
+ });
+
  alert("Сообщения сохранены!");
+ };
  }
 
- // Функция для загрузки сообщений из локального хранилища
+ // Функция для загрузки сообщений из базы данных
  function loadMessages() {
- const savedMessages = localStorage.getItem("messages");
- if (savedMessages) {
- const messages = JSON.parse(savedMessages);
- messages.forEach(message => {
+ const transaction = db.transaction(["messages"], "readonly");
+ const objectStore = transaction.objectStore("messages");
+ const request = objectStore.getAll();
+
+ request.onsuccess = function(event) {
+ const messages = event.target.result;
+ messages.forEach(messageData => {
  const messageElement = document.createElement("div");
  messageElement.className = "message";
- messageElement.textContent = message;
+
+ if (messageData.text) {
+ messageElement.textContent = messageData.text;
+ }
+
+ if (messageData.image) {
+ const imageElement = document.createElement("img");
+ imageElement.src = messageData.image;
+ imageElement.className = "message-image";
+ messageElement.appendChild(imageElement);
+ }
 
  // Добавляем обработчик контекстного меню
  messageElement.addEventListener("contextmenu", function(event) {
@@ -144,7 +304,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
  messagesContainer.appendChild(messageElement);
  });
- }
+ };
  }
 
  // Функция для отображения контекстного меню
@@ -172,10 +332,14 @@ document.addEventListener("DOMContentLoaded", function() {
 
  // Функция для редактирования сообщения
  function editMessage(messageElement) {
+ if (messageElement.querySelector("img")) {
+ alert("Редактирование изображений не поддерживается");
+ } else {
  const newText = prompt("Редактировать сообщение:", messageElement.textContent);
  if (newText !== null) {
  messageElement.textContent = newText;
  saveMessages();
+ }
  }
  contextMenu.style.display = "none";
  }
@@ -193,4 +357,14 @@ document.addEventListener("DOMContentLoaded", function() {
  document.addEventListener("click", function() {
  contextMenu.style.display = "none";
  });
+
+ // Функция для шифрования пароля
+ function encryptPassword(password) {
+ return btoa(password);
+ }
+
+ // Функция для расшифровки пароля
+ function decryptPassword(encryptedPassword) {
+ return atob(encryptedPassword);
+ }
 });
