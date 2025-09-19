@@ -1,3 +1,7 @@
+// script.js
+
+import { openDB, saveMessages, loadMessages } from './db.js';
+
 document.addEventListener("DOMContentLoaded", function() {
  const messageInput = document.getElementById("messageInput");
  const addMessageButton = document.getElementById("addMessageButton");
@@ -27,28 +31,37 @@ document.addEventListener("DOMContentLoaded", function() {
  let isAdmin = false;
  const encryptedAdminPassword = "YWRtaW4xMjM="; // Зашифрованный пароль "admin123"
  let currentImageUrl = null;
- let db;
  let isDrawing = false;
  let ctx = imageCanvas.getContext("2d");
 
- // Открываем или создаем базу данных IndexedDB
- const request = indexedDB.open("MessagesDB", 1);
+ // Открываем базу данных
+ openDB().then(() => {
+ loadMessages().then(messages => {
+ messages.forEach(messageData => {
+ const messageElement = document.createElement("div");
+ messageElement.className = "message";
 
- request.onerror = function(event) {
- console.log("Ошибка при открытии базы данных:", event.target.errorCode);
- };
+ if (messageData.text) {
+ messageElement.textContent = messageData.text;
+ }
 
- request.onsuccess = function(event) {
- db = event.target.result;
- loadMessages();
- };
+ if (messageData.image) {
+ const imageElement = document.createElement("img");
+ imageElement.src = messageData.image;
+ imageElement.className = "message-image";
+ messageElement.appendChild(imageElement);
+ }
 
- request.onupgradeneeded = function(event) {
- db = event.target.result;
- const objectStore = db.createObjectStore("messages", { keyPath: "id", autoIncrement: true });
- objectStore.createIndex("text", "text", { unique: false });
- objectStore.createIndex("image", "image", { unique: false });
- };
+ // Добавляем обработчик контекстного меню
+ messageElement.addEventListener("contextmenu", function(event) {
+ event.preventDefault();
+ showContextMenu(event, messageElement);
+ });
+
+ messagesContainer.appendChild(messageElement);
+ });
+ });
+ });
 
  // Проверяем, вошел ли пользователь как администратор
  checkAdminStatus();
@@ -113,7 +126,17 @@ document.addEventListener("DOMContentLoaded", function() {
  // Сохраняем сообщения в базу данных
  saveMessagesButton.addEventListener("click", function() {
  if (isAdmin) {
- saveMessages();
+ const messages = Array.from(messagesContainer.children).map(message => {
+ const messageData = {
+ text: message.textContent,
+ image: message.querySelector("img") ? message.querySelector("img").src : null
+ };
+ return messageData;
+ });
+
+ saveMessages(messages).then(() => {
+ alert("Сообщения сохранены!");
+ });
  } else {
  alert("Вы должны войти как администратор для сохранения сообщений");
  }
@@ -249,64 +272,6 @@ document.addEventListener("DOMContentLoaded", function() {
  }
  }
 
- // Функция для сохранения сообщений в базу данных
- function saveMessages() {
- const transaction = db.transaction(["messages"], "readwrite");
- const objectStore = transaction.objectStore("messages");
-
- // Очищаем хранилище перед сохранением новых сообщений
- const clearRequest = objectStore.clear();
- clearRequest.onsuccess = function() {
- const messages = Array.from(messagesContainer.children).map(message => {
- const messageData = {
- text: message.textContent,
- image: message.querySelector("img") ? message.querySelector("img").src : null
- };
- return messageData;
- });
-
- messages.forEach(messageData => {
- objectStore.add(messageData);
- });
-
- alert("Сообщения сохранены!");
- };
- }
-
- // Функция для загрузки сообщений из базы данных
- function loadMessages() {
- const transaction = db.transaction(["messages"], "readonly");
- const objectStore = transaction.objectStore("messages");
- const request = objectStore.getAll();
-
- request.onsuccess = function(event) {
- const messages = event.target.result;
- messages.forEach(messageData => {
- const messageElement = document.createElement("div");
- messageElement.className = "message";
-
- if (messageData.text) {
- messageElement.textContent = messageData.text;
- }
-
- if (messageData.image) {
- const imageElement = document.createElement("img");
- imageElement.src = messageData.image;
- imageElement.className = "message-image";
- messageElement.appendChild(imageElement);
- }
-
- // Добавляем обработчик контекстного меню
- messageElement.addEventListener("contextmenu", function(event) {
- event.preventDefault();
- showContextMenu(event, messageElement);
- });
-
- messagesContainer.appendChild(messageElement);
- });
- };
- }
-
  // Функция для отображения контекстного меню
  function showContextMenu(event, messageElement) {
  if (isAdmin) {
@@ -338,7 +303,17 @@ document.addEventListener("DOMContentLoaded", function() {
  const newText = prompt("Редактировать сообщение:", messageElement.textContent);
  if (newText !== null) {
  messageElement.textContent = newText;
- saveMessages();
+ const messages = Array.from(messagesContainer.children).map(message => {
+ const messageData = {
+ text: message.textContent,
+ image: message.querySelector("img") ? message.querySelector("img").src : null
+ };
+ return messageData;
+ });
+
+ saveMessages(messages).then(() => {
+ alert("Сообщения сохранены!");
+ });
  }
  }
  contextMenu.style.display = "none";
@@ -348,7 +323,17 @@ document.addEventListener("DOMContentLoaded", function() {
  function deleteMessage(messageElement) {
  if (confirm("Вы уверены, что хотите удалить это сообщение?")) {
  messageElement.remove();
- saveMessages();
+ const messages = Array.from(messagesContainer.children).map(message => {
+ const messageData = {
+ text: message.textContent,
+ image: message.querySelector("img") ? message.querySelector("img").src : null
+ };
+ return messageData;
+ });
+
+ saveMessages(messages).then(() => {
+ alert("Сообщения сохранены!");
+ });
  }
  contextMenu.style.display = "none";
  }
