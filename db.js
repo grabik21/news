@@ -1,66 +1,184 @@
-// db.js
+// db.js - Работа с серверной базой данных
 
-const DB_NAME = "MessagesDB";
-const DB_PASSWORD = "MessagesDB";
-const DB_VERSION = 1;
-const STORE_NAME = "messages";
+const API_BASE_URL = 'http://localhost:3000/api';
 
-let db;
-
-export function openDB() {
- return new Promise((resolve, reject) => {
- const request = indexedDB.open(DB_NAME, DB_VERSION);
-
- request.onerror = function(event) {
- console.log("Ошибка при открытии базы данных:", event.target.errorCode);
- reject(event.target.errorCode);
- };
-
- request.onsuccess = function(event) {
- db = event.target.result;
- resolve(db);
- };
-
- request.onupgradeneeded = function(event) {
- db = event.target.result;
- const objectStore = db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
- objectStore.createIndex("text", "text", { unique: false });
- objectStore.createIndex("image", "image", { unique: false });
- };
- });
+// Инициализация подключения к серверу
+export async function openDB() {
+ try {
+ // Проверяем доступность сервера
+ const response = await fetch(`${API_BASE_URL}/messages`);
+ if (!response.ok) {
+ throw new Error(`Сервер недоступен: ${response.status}`);
+ }
+ 
+ console.log("Подключение к серверной базе данных установлено");
+ return true;
+ } catch (error) {
+ console.error("Ошибка при подключении к серверу:", error);
+ 
+ // Fallback на localStorage если сервер недоступен
+ console.log("Переключение на локальное хранилище...");
+ return await initLocalStorage();
+ }
 }
 
-export function saveMessages(messages) {
- return new Promise((resolve, reject) => {
- const transaction = db.transaction([STORE_NAME], "readwrite");
- const objectStore = transaction.objectStore(STORE_NAME);
-
- // Очищаем хранилище перед сохранением новых сообщений
- const clearRequest = objectStore.clear();
- clearRequest.onsuccess = function() {
- messages.forEach(messageData => {
- objectStore.add(messageData);
- });
- resolve();
- };
- clearRequest.onerror = function(event) {
- reject(event.target.errorCode);
- };
- });
+// Fallback функция для работы с localStorage
+async function initLocalStorage() {
+ const DB_NAME = "messages_db_local";
+ 
+ try {
+ // Проверяем, есть ли локальные данные
+ const stored = localStorage.getItem(DB_NAME);
+ if (stored) {
+ console.log("Найдены локальные данные");
+ }
+ 
+ console.log("Локальное хранилище инициализировано");
+ return true;
+ } catch (error) {
+ console.error("Ошибка при инициализации локального хранилища:", error);
+ throw error;
+ }
 }
 
-export function loadMessages() {
- return new Promise((resolve, reject) => {
- const transaction = db.transaction([STORE_NAME], "readonly");
- const objectStore = transaction.objectStore(STORE_NAME);
- const request = objectStore.getAll();
-
- request.onsuccess = function(event) {
- resolve(event.target.result);
- };
-
- request.onerror = function(event) {
- reject(event.target.errorCode);
- };
+// Сохранение сообщений на сервер
+export async function saveMessages(messages) {
+ try {
+ const response = await fetch(`${API_BASE_URL}/messages`, {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ },
+ body: JSON.stringify({ messages })
  });
+
+ if (!response.ok) {
+ throw new Error(`Ошибка сервера: ${response.status}`);
+ }
+
+ const result = await response.json();
+ console.log(`Сохранено ${result.count} сообщений на сервер`);
+ return result;
+ } catch (error) {
+ console.error("Ошибка при сохранении на сервер:", error);
+ 
+ // Fallback на localStorage
+ console.log("Сохранение в локальное хранилище...");
+ return await saveToLocalStorage(messages);
+ }
+}
+
+// Загрузка сообщений с сервера
+export async function loadMessages() {
+ try {
+ const response = await fetch(`${API_BASE_URL}/messages`);
+ 
+ if (!response.ok) {
+ throw new Error(`Ошибка сервера: ${response.status}`);
+ }
+
+ const messages = await response.json();
+ console.log(`Загружено ${messages.length} сообщений с сервера`);
+ return messages;
+ } catch (error) {
+ console.error("Ошибка при загрузке с сервера:", error);
+ 
+ // Fallback на localStorage
+ console.log("Загрузка из локального хранилища...");
+ return await loadFromLocalStorage();
+ }
+}
+
+// Добавление одного сообщения
+export async function addMessage(messageData) {
+ try {
+ const response = await fetch(`${API_BASE_URL}/messages/add`, {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ },
+ body: JSON.stringify(messageData)
+ });
+
+ if (!response.ok) {
+ throw new Error(`Ошибка сервера: ${response.status}`);
+ }
+
+ const result = await response.json();
+ console.log("Сообщение добавлено на сервер");
+ return result.message;
+ } catch (error) {
+ console.error("Ошибка при добавлении сообщения на сервер:", error);
+ throw error;
+ }
+}
+
+// Обновление сообщения
+export async function updateMessage(messageId, messageData) {
+ try {
+ const response = await fetch(`${API_BASE_URL}/messages/${messageId}`, {
+ method: 'PUT',
+ headers: {
+ 'Content-Type': 'application/json',
+ },
+ body: JSON.stringify(messageData)
+ });
+
+ if (!response.ok) {
+ throw new Error(`Ошибка сервера: ${response.status}`);
+ }
+
+ const result = await response.json();
+ console.log("Сообщение обновлено на сервере");
+ return result.message;
+ } catch (error) {
+ console.error("Ошибка при обновлении сообщения на сервере:", error);
+ throw error;
+ }
+}
+
+// Удаление сообщения
+export async function deleteMessage(messageId) {
+ try {
+ const response = await fetch(`${API_BASE_URL}/messages/${messageId}`, {
+ method: 'DELETE'
+ });
+
+ if (!response.ok) {
+ throw new Error(`Ошибка сервера: ${response.status}`);
+ }
+
+ const result = await response.json();
+ console.log("Сообщение удалено с сервера");
+ return result.message;
+ } catch (error) {
+ console.error("Ошибка при удалении сообщения с сервера:", error);
+ throw error;
+ }
+}
+
+// Fallback функции для localStorage
+async function saveToLocalStorage(messages) {
+ try {
+ const DB_NAME = "messages_db_local";
+ localStorage.setItem(DB_NAME, JSON.stringify(messages));
+ console.log(`Сохранено ${messages.length} сообщений в localStorage`);
+ return { success: true, count: messages.length };
+ } catch (error) {
+ console.error("Ошибка при сохранении в localStorage:", error);
+ throw error;
+ }
+}
+
+async function loadFromLocalStorage() {
+ try {
+ const DB_NAME = "messages_db_local";
+ const stored = localStorage.getItem(DB_NAME);
+ const messages = stored ? JSON.parse(stored) : [];
+ console.log(`Загружено ${messages.length} сообщений из localStorage`);
+ return messages;
+ } catch (error) {
+ console.error("Ошибка при загрузке из localStorage:", error);
+ return [];
+ }
 }

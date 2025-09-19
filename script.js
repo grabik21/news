@@ -1,6 +1,6 @@
 // script.js
 
-import { openDB, saveMessages, loadMessages } from './db.js';
+import { openDB, saveMessages, loadMessages, addMessage, updateMessage, deleteMessage as deleteMessageAPI } from './db.js';
 
 document.addEventListener("DOMContentLoaded", function() {
  const messageInput = document.getElementById("messageInput");
@@ -34,9 +34,11 @@ document.addEventListener("DOMContentLoaded", function() {
  let isDrawing = false;
  let ctx = imageCanvas.getContext("2d");
 
- // Открываем базу данных
- openDB().then(() => {
- loadMessages().then(messages => {
+ // Функция для отображения сообщений (доступна всем пользователям)
+ function displayMessages(messages) {
+ // Очищаем контейнер сообщений
+ messagesContainer.innerHTML = '';
+ 
  messages.forEach(messageData => {
  const messageElement = document.createElement("div");
  messageElement.className = "message";
@@ -52,53 +54,75 @@ document.addEventListener("DOMContentLoaded", function() {
  messageElement.appendChild(imageElement);
  }
 
- // Добавляем обработчик контекстного меню
+ // Добавляем обработчик контекстного меню только для администраторов
+ if (isAdmin) {
  messageElement.addEventListener("contextmenu", function(event) {
  event.preventDefault();
  showContextMenu(event, messageElement);
  });
+ }
 
  messagesContainer.appendChild(messageElement);
  });
- });
- });
+ }
+
+ // Функция для обновления отображения сообщений
+ async function refreshMessages() {
+ try {
+ const messages = await loadMessages();
+ displayMessages(messages);
+ } catch (error) {
+ console.error("Ошибка при обновлении сообщений:", error);
+ }
+ }
+
+ // Инициализируем базу данных и загружаем сообщения
+ async function initializeApp() {
+ try {
+ await openDB();
+ await refreshMessages();
+ 
+ console.log("Приложение успешно инициализировано");
+ } catch (error) {
+ console.error("Ошибка при инициализации приложения:", error);
+ alert("Ошибка при загрузке данных. Пожалуйста, обновите страницу.");
+ }
+ }
+
+ // Запускаем инициализацию
+ initializeApp();
 
  // Проверяем, вошел ли пользователь как администратор
  checkAdminStatus();
 
  // Добавляем обработчик для кнопки добавления сообщения
- addMessageButton.addEventListener("click", function() {
+ addMessageButton.addEventListener("click", async function() {
  if (isAdmin) {
  const messageText = messageInput.value.trim();
 
  if (messageText !== "" || currentImageUrl) {
- // Создаем новый элемент сообщения
- const messageElement = document.createElement("div");
- messageElement.className = "message";
+ try {
+ // Создаем данные сообщения
+ const messageData = {
+ text: messageText || null,
+ image: currentImageUrl || null
+ };
 
- if (messageText !== "") {
- messageElement.textContent = messageText;
- }
+ // Добавляем сообщение на сервер
+ await addMessage(messageData);
+ 
+ // Обновляем отображение
+ await refreshMessages();
 
- if (currentImageUrl) {
- const imageElement = document.createElement("img");
- imageElement.src = currentImageUrl;
- imageElement.className = "message-image";
- messageElement.appendChild(imageElement);
- currentImageUrl = null;
- }
-
- // Добавляем обработчик контекстного меню
- messageElement.addEventListener("contextmenu", function(event) {
- event.preventDefault();
- showContextMenu(event, messageElement);
- });
-
- // Добавляем сообщение в контейнер
- messagesContainer.appendChild(messageElement);
-
- // Очищаем поле ввода
+ // Очищаем поле ввода и сбрасываем изображение
  messageInput.value = "";
+ currentImageUrl = null;
+ 
+ alert("Сообщение добавлено!");
+ } catch (error) {
+ console.error("Ошибка при добавлении сообщения:", error);
+ alert("Ошибка при добавлении сообщения. Попробуйте еще раз.");
+ }
  } else {
  alert("Пожалуйста, введите сообщение или добавьте изображение");
  }
@@ -124,8 +148,9 @@ document.addEventListener("DOMContentLoaded", function() {
  });
 
  // Сохраняем сообщения в базу данных
- saveMessagesButton.addEventListener("click", function() {
+ saveMessagesButton.addEventListener("click", async function() {
  if (isAdmin) {
+ try {
  const messages = Array.from(messagesContainer.children).map(message => {
  const messageData = {
  text: message.textContent,
@@ -134,9 +159,12 @@ document.addEventListener("DOMContentLoaded", function() {
  return messageData;
  });
 
- saveMessages(messages).then(() => {
+ await saveMessages(messages);
  alert("Сообщения сохранены!");
- });
+ } catch (error) {
+ console.error("Ошибка при сохранении сообщений:", error);
+ alert("Ошибка при сохранении сообщений. Попробуйте еще раз.");
+ }
  } else {
  alert("Вы должны войти как администратор для сохранения сообщений");
  }
@@ -264,12 +292,16 @@ document.addEventListener("DOMContentLoaded", function() {
  }
 
  // Функция для проверки статуса администратора
- function checkAdminStatus() {
+ async function checkAdminStatus() {
  if (isAdmin) {
  inputContainer.style.display = "flex";
  } else {
  inputContainer.style.display = "none";
  }
+ 
+ // Обновляем отображение сообщений при смене статуса
+ // чтобы контекстное меню корректно работало
+ await refreshMessages();
  }
 
  // Функция для отображения контекстного меню
@@ -296,44 +328,64 @@ document.addEventListener("DOMContentLoaded", function() {
  }
 
  // Функция для редактирования сообщения
- function editMessage(messageElement) {
+ async function editMessage(messageElement) {
  if (messageElement.querySelector("img")) {
  alert("Редактирование изображений не поддерживается");
  } else {
  const newText = prompt("Редактировать сообщение:", messageElement.textContent);
  if (newText !== null) {
- messageElement.textContent = newText;
- const messages = Array.from(messagesContainer.children).map(message => {
- const messageData = {
- text: message.textContent,
- image: message.querySelector("img") ? message.querySelector("img").src : null
- };
- return messageData;
- });
-
- saveMessages(messages).then(() => {
- alert("Сообщения сохранены!");
- });
+ try {
+ // Загружаем текущие сообщения для получения ID
+ const currentMessages = await loadMessages();
+ 
+ // Находим индекс редактируемого сообщения
+ const messageIndex = Array.from(messagesContainer.children).indexOf(messageElement);
+ 
+ if (messageIndex !== -1 && currentMessages[messageIndex]) {
+ const messageId = currentMessages[messageIndex].id;
+ 
+ // Обновляем сообщение на сервере
+ await updateMessage(messageId, { text: newText });
+ 
+ // Обновляем отображение
+ await refreshMessages();
+ 
+ alert("Сообщение обновлено!");
+ }
+ } catch (error) {
+ console.error("Ошибка при редактировании сообщения:", error);
+ alert("Ошибка при редактировании сообщения. Попробуйте еще раз.");
+ }
  }
  }
  contextMenu.style.display = "none";
  }
 
  // Функция для удаления сообщения
- function deleteMessage(messageElement) {
+ async function deleteMessage(messageElement) {
  if (confirm("Вы уверены, что хотите удалить это сообщение?")) {
- messageElement.remove();
- const messages = Array.from(messagesContainer.children).map(message => {
- const messageData = {
- text: message.textContent,
- image: message.querySelector("img") ? message.querySelector("img").src : null
- };
- return messageData;
- });
-
- saveMessages(messages).then(() => {
- alert("Сообщения сохранены!");
- });
+ try {
+ // Загружаем текущие сообщения для получения ID
+ const currentMessages = await loadMessages();
+ 
+ // Находим индекс удаляемого сообщения
+ const messageIndex = Array.from(messagesContainer.children).indexOf(messageElement);
+ 
+ if (messageIndex !== -1 && currentMessages[messageIndex]) {
+ const messageId = currentMessages[messageIndex].id;
+ 
+ // Удаляем сообщение с сервера
+ await deleteMessageAPI(messageId);
+ 
+ // Обновляем отображение
+ await refreshMessages();
+ 
+ alert("Сообщение удалено!");
+ }
+ } catch (error) {
+ console.error("Ошибка при удалении сообщения:", error);
+ alert("Ошибка при удалении сообщения. Попробуйте еще раз.");
+ }
  }
  contextMenu.style.display = "none";
  }
